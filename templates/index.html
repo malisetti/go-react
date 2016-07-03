@@ -16,14 +16,13 @@
 	</div>
 	<script type="text/babel">
 		var App = React.createClass({
-			loadCommentsFromServer: function() {
+			loadBanks: function() {
 				localStorage.removeItem('banks');
 				var banks = localStorage.getItem('banks');
 				if (!banks) {
 					this.serverRequest = $.ajax({
 						url: this.props.url,
 						type: 'GET',
-						cache: true,
 						dataType: 'json',
 						success: function(data) {
 							localStorage.setItem('banks', JSON.stringify(data));
@@ -42,7 +41,7 @@
 			    return {banks: []};
 			},
 		  componentDidMount: function() {
-			    this.loadCommentsFromServer();
+			    this.loadBanks();
 			},
 			componentWillUnmount: function() {
 		    this.serverRequest.abort();
@@ -52,7 +51,7 @@
 					<div className="row">
 					<div className="col-md-6">
 						<h1>Bank List</h1>
-						<BanksDropdown banks={this.state.banks} />
+						<BanksDropdown banks={this.state.banks} url="/city/:bank" />
 					</div>
 					<div className="col-md-6">
 						<SearchResults />
@@ -64,42 +63,17 @@
 		var SearchBar = React.createClass({
 			filterCities: function(event) {
 				let searchKey = document.getElementById('citysearch').value;
-				let searchResults = this.state.fuse.search(searchKey);
-				this.setState({resultedCities: searchResults});
+				if (searchKey && searchKey.length){
+					let searchResults = this.state.fuse.search(searchKey);
+					this.setState({resultedCities: searchResults});
+				} else {
+					this.setState({resultedCities: []});
+				}
 			},
 			getInitialState: function() {
-				return {cities: [], resultedCities: []};
+				return {cities: this.props.cities, resultedCities: [], fuse: null};
 			},
 			componentDidMount: function() {
-				let bankID = this.props.selectedBank;
-				if (!isNaN(bankID)) {
-					let storageKey = 'banks_' + bankID;
-					localStorage.removeItem(storageKey);
-					let cities = localStorage.getItem(storageKey);
-					if (!cities) {
-						$.ajax({
-							url: this.props.url.replace(':bank', bankID),
-							type: 'GET',
-							cache: true,
-							dataType: 'json',
-							success: function(data) {
-								localStorage.setItem(storageKey, JSON.stringify(data));
-								this.setState({
-									cities: data
-								});
-							}.bind(this)
-						});
-					} else {
-						this.setState({
-							cities: JSON.parse(cities)
-						});
-					}
-				} else {
-					this.setState({
-						cities: []
-					});
-				}
-				
 				let fuse = new Fuse(this.state.cities);
 				this.setState({fuse: fuse});
 			},
@@ -138,7 +112,34 @@
 			    return {cities: []};
 			},
 			handleClick: function(event) {
-				this.setState({selected: event.target.value});
+				let bankID = event.target.value;
+				this.setState({selected: bankID});
+				if (!isNaN(bankID)) {
+					let storageKey = 'banks_' + bankID;
+					localStorage.removeItem(storageKey);
+					let cities = localStorage.getItem(storageKey);
+					if (!cities) {
+						$.ajax({
+							url: this.props.url.replace(':bank', bankID),
+							type: 'GET',
+							dataType: 'json',
+							success: function(data) {
+								localStorage.setItem(storageKey, JSON.stringify(data));
+								this.setState({
+									cities: data
+								});
+							}.bind(this)
+						});
+					} else {
+						this.setState({
+							cities: JSON.parse(cities)
+						});
+					}
+				} else {
+					this.setState({
+						cities: []
+					});
+				}
 			},
 			render: function() {
 				let options = this.props.banks.map(function(bank) {
@@ -153,7 +154,7 @@
 										onChange={this.handleClick}>
 								{options}
 						</select>
-						<SearchBar selectedBank={this.state.selected} url="/city/:bank"/>
+						<SearchBar cities={this.state.cities}/>
 					</div>
 				)
 			}
