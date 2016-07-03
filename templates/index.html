@@ -17,7 +17,6 @@
 	<script type="text/babel">
 		var App = React.createClass({
 			loadBanks: function() {
-				localStorage.removeItem('banks');
 				var banks = localStorage.getItem('banks');
 				if (!banks) {
 					this.serverRequest = $.ajax({
@@ -49,74 +48,147 @@
 			render: function() {
 				return (
 					<div className="row">
-					<div className="col-md-6">
-						<h1>Bank List</h1>
-						<BanksDropdown banks={this.state.banks} url="/city/:bank" />
-					</div>
-					<div className="col-md-6">
-						<SearchResults />
-					</div>
+						<div className="col-md-6">
+							<h1>Bank List</h1>
+							<BanksDropdown banks={this.state.banks} url="/city/:bank" />
+						</div>
 					</div>
 				);
 			}
 		});
 		var SearchBar = React.createClass({
-			filterCities: function(event) {
-				let searchKey = document.getElementById('citysearch').value;
-				if (searchKey && searchKey.length){
-					let searchResults = this.state.fuse.search(searchKey);
-					this.setState({resultedCities: searchResults});
+			fetchBranches: function(event) {
+				let city = event.target.innerHTML;
+				let url = this.props.url.replace(':bank', this.state.selectedBank).replace(':city', city);
+				let storageKey = this.state.selectedBank + '_' + city;
+				let branches = localStorage.getItem(storageKey);
+				if (branches) {
+					this.setState({
+						branches: JSON.parse(branches)
+					});
 				} else {
-					this.setState({resultedCities: []});
+					$.ajax({
+						url: url,
+						type: 'GET',
+						dataType: 'json',
+						success: function(data) {
+							localStorage.setItem(storageKey, JSON.stringify(data));
+							this.setState({
+								branches: data
+							});
+						}.bind(this)
+					});
 				}
 			},
+			filterCities: function(event) {
+				clearTimeout(this.state.timer);
+				var component = this;
+				let timer = setTimeout(function validate() {
+					let searchKey = document.getElementById('citysearch').value;
+					if (searchKey && searchKey.length) {
+						let searchResults = component.state.fuse.search(searchKey);
+						let results = searchResults.map(function(r) {
+							return component.state.cities[r];
+						});
+						component.setState({resultedCities: results, clearData: false});
+					} else {
+						component.setState({resultedCities: [], clearData: true});
+					}
+				}, 1000);
+       	this.setState({timer: timer});
+			},
 			getInitialState: function() {
-				return {cities: this.props.cities, resultedCities: [], fuse: null};
+				return {cities: this.props.cities, branches: [], resultedCities: [], fuse: null, timer: null, selectedBank: this.props.selectedBank, clearData: true};
+			},
+			componentWillReceiveProps: function(nextProps) {
+				this.setState({cities: nextProps.cities, selectedBank: nextProps.selectedBank});
+				if (nextProps.clearData) {
+					document.getElementById('citysearch').value = '';
+					this.setState({resultedCities: [], branches: [], clearData: true});
+				}
+				let fuse = new Fuse(nextProps.cities);
+				this.setState({fuse: fuse});
 			},
 			componentDidMount: function() {
-				let fuse = new Fuse(this.state.cities);
-				this.setState({fuse: fuse});
 			},
 			render: function() {
 				let liItems = this.state.resultedCities.map(function(city) {
 					return React.createElement('li', {key: city}, city);
 				});
 				return (
-					<div>
+					<div className="searchResults">
 						<input type="text" name="citysearch" id="citysearch" onKeyUp={this.filterCities}/>
-						<ul>
+						<ul id="filteredCities" onClick={this.fetchBranches}>
 							{liItems}
 						</ul>
+						<div className="row">
+							<div className="col-md-6">
+								<SearchResults branches={this.state.branches} clearData={this.state.clearData}/>
+							</div>
+						</div>
 					</div>
 				)
 			}
 		});
 		var SearchResults = React.createClass({
+			getInitialState: function() {
+				return {branches: [], clearData: true};
+			},
+			componentWillReceiveProps: function(nextProps) {
+				if (nextProps.clearData) {
+					this.setState({branches: []});
+				} else {
+					this.setState({branches: nextProps.branches});
+				}
+			},
 			render: function() {
-				return null;
+				let results = this.state.branches.map(function(branch) {
+					return React.createElement(Branch, {key: branch.ifsc, branch: branch});
+				});
+				return (
+					<div>
+					{results}
+					</div>
+				)
 			}
 		});
-		var BranchList = React.createClass({
-			render: function() {
 
-			}
-		});
 		var Branch = React.createClass({
+			getInitialState: function() {
+				return {branch: this.props.branch};
+			},
+			componentWillReceiveProps: function(nextProps) {
+				this.setState({branch: nextProps.branch});
+			},
 			render: function() {
-
+				return (
+					<div className="branch">
+						<dt>ifsc</dt>
+		  			<dd>{this.state.branch.ifsc}</dd>
+						<dt>branch</dt>
+		  			<dd>{this.state.branch.branch}</dd>
+						<dt>address</dt>
+		  			<dd>{this.state.branch.address}</dd>
+						<dt>city</dt>
+		  			<dd>{this.state.branch.city}</dd>
+						<dt>district</dt>
+		  			<dd>{this.state.branch.district}</dd>
+						<dt>state</dt>
+		  			<dd>{this.state.branch.state}</dd>
+					</div>
+				)
 			}
 		});
 
 		var BanksDropdown = React.createClass({
 			getInitialState: function() {
-			    return {cities: []};
+			    return {cities: [], clearData: true, selected: ''};
 			},
 			handleClick: function(event) {
 				let bankID = event.target.value;
-				this.setState({selected: bankID});
-				if (!isNaN(bankID)) {
+				this.setState({selected: bankID, cities: [], clearData: true});
+				if (!isNaN(bankID) && bankID !== '') {
 					let storageKey = 'banks_' + bankID;
-					localStorage.removeItem(storageKey);
 					let cities = localStorage.getItem(storageKey);
 					if (!cities) {
 						$.ajax({
@@ -148,13 +220,13 @@
 				options.unshift(React.createElement('option', {value: '', key: ''}, '--- Select a Bank ---'));
 
 				return (
-					<div className="SearchBarResults">
+					<div className="searchBarResults">
 						<select className='form-control'
 										value={this.state.selected}
 										onChange={this.handleClick}>
 								{options}
 						</select>
-						<SearchBar cities={this.state.cities}/>
+						<SearchBar selectedBank={this.state.selected} cities={this.state.cities} clearData={this.state.clearData} url="/branch/:bank/:city"/>
 					</div>
 				)
 			}
