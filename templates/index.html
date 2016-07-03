@@ -8,20 +8,118 @@
 		<script src="https://fb.me/react-dom-15.2.0.js"></script>
   	<script type="text/javascript" src="/static/js/browser.min.js"></script>
   	<script type="text/javascript" src="/static/js/jquery.min.js"></script>
+		<script type="text/javascript" src="/static/js/fuse.min.js"></script>
   	<link rel="stylesheet" type="text/css" href="/static/css/bootstrap.min.css" />
 </head>
 <body>
 	<div id="content">
 	</div>
 	<script type="text/babel">
-		var SearchBar = React.createClass({
+		var App = React.createClass({
+			loadCommentsFromServer: function() {
+				localStorage.removeItem('banks');
+				var banks = localStorage.getItem('banks');
+				if (!banks) {
+					this.serverRequest = $.ajax({
+						url: this.props.url,
+						type: 'GET',
+						cache: true,
+						dataType: 'json',
+						success: function(data) {
+							localStorage.setItem('banks', JSON.stringify(data));
+							this.setState({
+								banks: data
+							});
+						}.bind(this)
+					});
+				} else {
+					this.setState({
+						banks: JSON.parse(banks)
+					});
+				}
+			},
+			getInitialState: function() {
+			    return {banks: []};
+			},
+		  componentDidMount: function() {
+			    this.loadCommentsFromServer();
+			},
+			componentWillUnmount: function() {
+		    this.serverRequest.abort();
+		  },
 			render: function() {
-				return React.createElement('input', null, '');
+				return (
+					<div className="row">
+					<div className="col-md-6">
+						<h1>Bank List</h1>
+						<BanksDropdown banks={this.state.banks} />
+					</div>
+					<div className="col-md-6">
+						<SearchResults />
+					</div>
+					</div>
+				);
+			}
+		});
+		var SearchBar = React.createClass({
+			filterCities: function(event) {
+				let searchKey = document.getElementById('citysearch').value;
+				let searchResults = this.state.fuse.search(searchKey);
+				this.setState({resultedCities: searchResults});
+			},
+			getInitialState: function() {
+				return {cities: [], resultedCities: []};
+			},
+			componentDidMount: function() {
+				let bankID = this.props.selectedBank;
+				if (!isNaN(bankID)) {
+					let storageKey = 'banks_' + bankID;
+					localStorage.removeItem(storageKey);
+					let cities = localStorage.getItem(storageKey);
+					if (!cities) {
+						$.ajax({
+							url: this.props.url.replace(':bank', bankID),
+							type: 'GET',
+							cache: true,
+							dataType: 'json',
+							success: function(data) {
+								localStorage.setItem(storageKey, JSON.stringify(data));
+								this.setState({
+									cities: data
+								});
+							}.bind(this)
+						});
+					} else {
+						this.setState({
+							cities: JSON.parse(cities)
+						});
+					}
+				} else {
+					this.setState({
+						cities: []
+					});
+				}
+				
+				let fuse = new Fuse(this.state.cities);
+				this.setState({fuse: fuse});
+			},
+			render: function() {
+				let liItems = this.state.resultedCities.map(function(city) {
+					return React.createElement('li', {key: city}, city);
+				});
+				return (
+					<div>
+						<input type="text" name="citysearch" id="citysearch" onKeyUp={this.filterCities}/>
+						<ul>
+							{liItems}
+						</ul>
+					</div>
+				)
 			}
 		});
 		var SearchResults = React.createClass({
 			render: function() {
-
+				return null;
 			}
 		});
 		var BranchList = React.createClass({
@@ -37,42 +135,33 @@
 
 		var BanksDropdown = React.createClass({
 			getInitialState: function() {
-				return {
-					banks: []
-				};
-			},
-			componentDidMount: function() {
-				var component = this;
-				$.ajax({
-					url: '/bank',
-					type: 'GET',
-					dataType: 'json',
-					success: function(data) {
-						component.setState({
-							banks: data
-						});
-					}
-				});
+			    return {cities: []};
 			},
 			handleClick: function(event) {
-				this.setState({value: event.target.value});
+				this.setState({selected: event.target.value});
 			},
 			render: function() {
-				var options = this.state.banks.map(function(bank) {
+				let options = this.props.banks.map(function(bank) {
 					return React.createElement('option', {value: bank.id, key: bank.id}, bank.name);
 				});
-				return React.createElement('select', {onChange: this.handleClick}, options);
+				options.unshift(React.createElement('option', {value: '', key: ''}, '--- Select a Bank ---'));
+
+				return (
+					<div className="SearchBarResults">
+						<select className='form-control'
+										value={this.state.selected}
+										onChange={this.handleClick}>
+								{options}
+						</select>
+						<SearchBar selectedBank={this.state.selected} url="/city/:bank"/>
+					</div>
+				)
 			}
 		});
 
 		ReactDOM.render(
-		  React.createElement(BanksDropdown, null),
+		  <App url="/bank"/>,
 		  document.getElementById('content')
-		);
-
-		ReactDOM.render(
-			React.createElement(SearchBar, null),
-			document.getElementById('content')
 		);
 	</script>
 </body>

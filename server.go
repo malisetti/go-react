@@ -73,7 +73,7 @@ func main() {
 		bank := c.Params.ByName("bank")
 		//find the cities of a bank
 		cities := []string{}
-		rows, err := db.Query("SELECT city FROM branches WHERE bank_id=$1", bank)
+		rows, err := db.Query("SELECT DISTINCT city FROM branches WHERE bank_id=$1", bank)
 		checkErr(err)
 		defer rows.Close()
 
