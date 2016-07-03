@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Banks | Search</title>
+  	<!-- <script type="text/javascript" src="/static/js/react-15.2.0.min.js"></script>
+  	<script type="text/javascript" src="/static/js/react-dom-15.2.0.min.js"></script> -->
+		<script src="https://fb.me/react-15.2.0.js"></script>
+		<script src="https://fb.me/react-dom-15.2.0.js"></script>
+  	<script type="text/javascript" src="/static/js/browser.min.js"></script>
+  	<script type="text/javascript" src="/static/js/jquery.min.js"></script>
+  	<link rel="stylesheet" type="text/css" href="/static/css/bootstrap.min.css" />
+</head>
+<body>
+	<div id="content">
+	</div>
+	<script type="text/babel">
+		var SearchBar = React.createClass({
+			render: function() {
+				return React.createElement('input', null, '');
+			}
+		});
+		var SearchResults = React.createClass({
+			render: function() {
+
+			}
+		});
+		var BranchList = React.createClass({
+			render: function() {
+
+			}
+		});
+		var Branch = React.createClass({
+			render: function() {
+
+			}
+		});
+
+		var BanksDropdown = React.createClass({
+			getInitialState: function() {
+				return {
+					banks: []
+				};
+			},
+			componentDidMount: function() {
+				var component = this;
+				$.ajax({
+					url: '/bank',
+					type: 'GET',
+					dataType: 'json',
+					success: function(data) {
+						component.setState({
+							banks: data
+						});
+					}
+				});
+			},
+			handleClick: function(event) {
+				this.setState({value: event.target.value});
+			},
+			render: function() {
+				var options = this.state.banks.map(function(bank) {
+					return React.createElement('option', {value: bank.id, key: bank.id}, bank.name);
+				});
+				return React.createElement('select', {onChange: this.handleClick}, options);
+			}
+		});
+
+		ReactDOM.render(
+		  React.createElement(BanksDropdown, null),
+		  document.getElementById('content')
+		);
+
+		ReactDOM.render(
+			React.createElement(SearchBar, null),
+			document.getElementById('content')
+		);
+	</script>
+</body>
+</html>
