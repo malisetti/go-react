@@ -1,0 +1,12 @@
+{
+  "name": "go-react",
+  "description": "Go App",
+  "keywords": [
+    "go-react",
+    "go"
+  ],
+  "image": "heroku/go:1.6",
+  "mount_dir": "src/github.com/mseshachalam/go-react",
+  "website": "http://github.com/mseshachalam/go-react",
+  "repository": "http://github.com/mseshachalam/go-react"
+}
