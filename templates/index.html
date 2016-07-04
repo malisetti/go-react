@@ -4,13 +4,15 @@
 	<title>Banks | Search</title>
   	<script type="text/javascript" src="/static/js/react-15.2.0.min.js"></script>
   	<script type="text/javascript" src="/static/js/react-dom-15.2.0.min.js"></script>
+		<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/react/15.2.0/react.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/15.2.0/react-dom.js"></script> -->
   	<script type="text/javascript" src="/static/js/browser.min.js"></script>
   	<script type="text/javascript" src="/static/js/jquery.min.js"></script>
 		<script type="text/javascript" src="/static/js/fuse.min.js"></script>
   	<link rel="stylesheet" type="text/css" href="/static/css/bootstrap.min.css" />
 </head>
 <body>
-	<div id="content">
+	<div id="content" class="container-fluid">
 	</div>
 	<script type="text/babel">
 		var App = React.createClass({
@@ -35,7 +37,7 @@
 				}
 			},
 			getInitialState: function() {
-			    return {banks: []};
+			    return {banks: [], branches: []};
 			},
 		  componentDidMount: function() {
 			    this.loadBanks();
@@ -44,11 +46,17 @@
 				return (
 					<div className="row">
 						<div className="col-md-6">
-							<h1>Bank List</h1>
-							<BanksDropdown banks={this.state.banks} url="/city/:bank" />
+							<h1>Bank Search</h1>
+							<BanksDropdown banks={this.state.banks} onFetchBranches={this.onFetchBranches} url="/city/:bank" />
+						</div>
+						<div className="col-md-6">
+								<SearchResults branches={this.state.branches} />
 						</div>
 					</div>
 				);
+			},
+			onFetchBranches: function(branches) {
+				this.setState({branches: branches});
 			}
 		});
 		let SearchBar = React.createClass({
@@ -58,9 +66,7 @@
 				let storageKey = this.state.selectedBank + '_' + city;
 				let branches = localStorage.getItem(storageKey);
 				if (branches) {
-					this.setState({
-						branches: JSON.parse(branches)
-					});
+					this.props.onFetchBranches(JSON.parse(branches));
 				} else {
 					$.ajax({
 						url: url,
@@ -68,57 +74,54 @@
 						dataType: 'json',
 						success: function(data) {
 							localStorage.setItem(storageKey, JSON.stringify(data));
-							this.setState({
-								branches: data
-							});
+							this.props.onFetchBranches(data);
 						}.bind(this)
 					});
 				}
 			},
 			filterCities: function(event) {
-				clearTimeout(this.state.timer);
+				clearTimeout(this.timer);
 				let component = this;
 				let timer = setTimeout(function validate() {
 					let searchKey = document.getElementById('citysearch').value;
 					if (searchKey && searchKey.length) {
-						let searchResults = component.state.fuse.search(searchKey);
+						let searchResults = component.fuse.search(searchKey);
 						let results = searchResults.map(function(r) {
 							return component.state.cities[r];
 						});
-						component.setState({resultedCities: results, clearData: false});
+						component.setState({resultedCities: results});
 					} else {
-						component.setState({resultedCities: [], clearData: true});
+						component.setState({resultedCities: []});
+						component.props.onFetchBranches([]);
 					}
 				}, 500);
-       	this.setState({timer: timer});
+       	this.timer = timer;
 			},
 			getInitialState: function() {
-				return {cities: this.props.cities, branches: [], resultedCities: [], fuse: null, timer: null, selectedBank: this.props.selectedBank, clearData: true};
+				return {cities: this.props.cities, resultedCities: [], selectedBank: this.props.selectedBank};
 			},
 			componentWillReceiveProps: function(nextProps) {
 				this.setState({cities: nextProps.cities, selectedBank: nextProps.selectedBank});
-				if (nextProps.clearData) {
+				if (nextProps.selectedBank == '') {
 					document.getElementById('citysearch').value = '';
-					this.setState({resultedCities: [], branches: [], clearData: true});
+					this.setState({resultedCities: [], branches: []});
 				}
 				const fuse = new Fuse(nextProps.cities, {threshold: 0.3});
-				this.setState({fuse: fuse});
-			},
-			componentDidMount: function() {
+				this.fuse = fuse;
 			},
 			render: function() {
 				let liItems = this.state.resultedCities.map(function(city) {
-					return React.createElement('li', {key: city}, city);
+					return React.createElement('a', {"href": "#", 'title': 'click to get branches'}, React.createElement('li', {key: city}, city));
 				});
 				return (
 					<div className="form-group">
-						<input type="text" name="citysearch" id="citysearch" onKeyUp={this.filterCities}/>
-						<ul id="filteredCities" onClick={this.fetchBranches}>
-							{liItems}
-						</ul>
+						<input type="text" className="form-control" name="citysearch" id="citysearch" onKeyUp={this.filterCities}/>
+						<br/>
 						<div className="row">
-							<div className="col-md-6">
-								<SearchResults branches={this.state.branches} clearData={this.state.clearData}/>
+							<div className="col-md-8 col-md-offset-2">
+								<ul className="list-unstyled" onClick={this.fetchBranches}>
+									{liItems}
+								</ul>
 							</div>
 						</div>
 					</div>
@@ -127,14 +130,10 @@
 		});
 		let SearchResults = React.createClass({
 			getInitialState: function() {
-				return {branches: [], clearData: true};
+				return {branches: this.props.branches};
 			},
 			componentWillReceiveProps: function(nextProps) {
-				if (nextProps.clearData) {
-					this.setState({branches: []});
-				} else {
-					this.setState({branches: nextProps.branches});
-				}
+				this.setState({branches: nextProps.branches});
 			},
 			render: function() {
 				let results = this.state.branches.map(function(branch) {
@@ -157,19 +156,16 @@
 			},
 			render: function() {
 				return (
-					<div className="branch">
-						<dt>ifsc</dt>
-		  			<dd>{this.state.branch.ifsc}</dd>
-						<dt>branch</dt>
-		  			<dd>{this.state.branch.branch}</dd>
-						<dt>address</dt>
-		  			<dd>{this.state.branch.address}</dd>
-						<dt>city</dt>
-		  			<dd>{this.state.branch.city}</dd>
-						<dt>district</dt>
-		  			<dd>{this.state.branch.district}</dd>
-						<dt>state</dt>
-		  			<dd>{this.state.branch.state}</dd>
+					<div>
+						<fieldset>
+							IFSC: {this.state.branch.ifsc} <br/>
+							Branch: {this.state.branch.branch} <br/>
+							Address: {this.state.branch.address} <br/>
+							City: {this.state.branch.city} <br/>
+							District: {this.state.branch.district} <br/>
+							State: {this.state.branch.state}
+						</fieldset>
+						<br/>
 					</div>
 				)
 			}
@@ -177,11 +173,11 @@
 
 		let BanksDropdown = React.createClass({
 			getInitialState: function() {
-			    return {cities: [], clearData: true, selected: ''};
+			    return {cities: [], selected: ''};
 			},
 			handleClick: function(event) {
 				let bankID = event.target.value;
-				this.setState({selected: bankID, cities: [], clearData: true});
+				this.setState({selected: bankID, cities: []});
 				if (!isNaN(bankID) && bankID !== '') {
 					let storageKey = 'banks_' + bankID;
 					let cities = localStorage.getItem(storageKey);
@@ -206,6 +202,7 @@
 					this.setState({
 						cities: []
 					});
+					this.props.onFetchBranches([]);
 				}
 			},
 			render: function() {
@@ -215,13 +212,17 @@
 				options.unshift(React.createElement('option', {value: '', key: ''}, '--- Select a Bank ---'));
 
 				return (
-					<div className="form-group">
-						<select value={this.state.selected}
-										onChange={this.handleClick}>
-								{options}
-						</select>
-						<SearchBar selectedBank={this.state.selected} cities={this.state.cities} clearData={this.state.clearData} url="/branch/:bank/:city"/>
-					</div>
+					<form role="form">
+						<div className="form-group">
+							<select className="form-control" value={this.state.selected}
+											onChange={this.handleClick}>
+									{options}
+							</select>
+						</div>
+						<div className="form-group">
+							<SearchBar selectedBank={this.state.selected} onFetchBranches={this.props.onFetchBranches} cities={this.state.cities} url="/branch/:bank/:city"/>
+						</div>
+					</form>
 				)
 			}
 		});
